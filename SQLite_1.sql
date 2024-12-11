@@ -1,11 +1,9 @@
--- 1. Удаление существующих таблиц
 DROP TABLE IF EXISTS Заказы;
 DROP TABLE IF EXISTS Автомобили;
 DROP TABLE IF EXISTS Услуги;
 DROP TABLE IF EXISTS Мастера;
 DROP TABLE IF EXISTS Клиенты;
 
--- 2. Создание таблиц
 CREATE TABLE Клиенты (
     ID_Клиента INT PRIMARY KEY,
     ФИО_Клиента VARCHAR(100),
@@ -30,7 +28,7 @@ CREATE TABLE Мастера (
     ID_Мастера INT PRIMARY KEY,
     ФИО_Мастера VARCHAR(100),
     Телефон_Мастера VARCHAR(15),
-    Зарплата DECIMAL(10, 2) -- Добавлена колонка Зарплата
+    Зарплата DECIMAL(10, 2) 
 );
 
 CREATE TABLE Заказы (
@@ -46,7 +44,6 @@ CREATE TABLE Заказы (
     FOREIGN KEY (ID_Мастера) REFERENCES Мастера(ID_Мастера)
 );
 
--- 3. Заполнение таблиц
 INSERT INTO Клиенты (ID_Клиента, ФИО_Клиента, Телефон_Клиента) VALUES
 (1, 'Иванов Иван Иванович', '+79990001122'),
 (2, 'Петров Петр Петрович', '+79990002233'),

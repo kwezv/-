@@ -1,1 +1,53 @@
+CREATE TABLE IF NOT EXISTS Clients (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL
+);
 
+CREATE TABLE IF NOT EXISTS Vehicles (
+    id INTEGER PRIMARY KEY,
+    client_id INTEGER,
+    model TEXT NOT NULL,
+    FOREIGN KEY (client_id) REFERENCES Clients(id)
+);
+
+CREATE TABLE IF NOT EXISTS Services (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    price DECIMAL(10,2) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS Orders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id INTEGER,
+    vehicle_id INTEGER,
+    total_cost DECIMAL(10,2),
+    order_date TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (client_id) REFERENCES Clients(id),
+    FOREIGN KEY (vehicle_id) REFERENCES Vehicles(id)
+);
+
+CREATE TABLE IF NOT EXISTS OrderDetails (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id INTEGER,
+    service_id INTEGER,
+    price DECIMAL(10,2),
+    FOREIGN KEY (order_id) REFERENCES Orders(id),
+    FOREIGN KEY (service_id) REFERENCES Services(id)
+);
+
+CREATE TRIGGER IF NOT EXISTS create_order
+AFTER INSERT ON Orders
+FOR EACH ROW
+BEGIN
+    UPDATE Orders SET total_cost = (SELECT SUM(price) FROM OrderDetails WHERE order_id = NEW.id) WHERE id = NEW.id;
+END;
+
+INSERT INTO Clients (id, name) SELECT 1, 'Дмитрий Кудряшов' WHERE NOT EXISTS (SELECT 1 FROM Clients WHERE id = 1);
+INSERT INTO Vehicles (id, client_id, model) SELECT 1, 1, 'Toyota Camry' WHERE NOT EXISTS (SELECT 1 FROM Vehicles WHERE id = 1);
+INSERT INTO Services (id, name, price) SELECT 1, 'Замена масла', 2000.00 WHERE NOT EXISTS (SELECT 1 FROM Services WHERE id = 1);
+INSERT INTO Services (id, name, price) SELECT 2, 'Диагностика', 1500.00 WHERE NOT EXISTS (SELECT 1 FROM Services WHERE id = 2);
+
+INSERT INTO Orders (client_id, vehicle_id) VALUES (1, 1);
+INSERT INTO OrderDetails (order_id, service_id, price) VALUES (1, 1, 2000.00), (1, 2, 1500.00);
+
+SELECT * FROM Orders;

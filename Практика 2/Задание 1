@@ -1,79 +1,64 @@
--- 1. СОЗДАНИЕ ТАБЛИЦ (если не существуют)
-CREATE TABLE IF NOT EXISTS Clients (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS Vehicles (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    client_id INTEGER,
-    model TEXT NOT NULL,
-    FOREIGN KEY (client_id) REFERENCES Clients(id)
-);
-
-CREATE TABLE IF NOT EXISTS Services (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL UNIQUE,
-    price DECIMAL(10,2) NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS Orders (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    client_id INTEGER,
-    vehicle_id INTEGER,
-    total_cost DECIMAL(10,2) DEFAULT 0,
-    order_date TEXT DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (client_id) REFERENCES Clients(id),
-    FOREIGN KEY (vehicle_id) REFERENCES Vehicles(id)
-);
-
-CREATE TABLE IF NOT EXISTS OrderDetails (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    order_id INTEGER,
-    service_id INTEGER,
-    price DECIMAL(10,2),
-    FOREIGN KEY (order_id) REFERENCES Orders(id),
-    FOREIGN KEY (service_id) REFERENCES Services(id)
-);
-
--- 2. ДОБАВЛЕНИЕ ТЕСТОВЫХ ДАННЫХ
-INSERT INTO Clients (name) 
-SELECT 'Дмитрий Кудряшов' 
-WHERE NOT EXISTS (SELECT 1 FROM Clients WHERE name = 'Дмитрий Кудряшов');
-
-INSERT INTO Vehicles (client_id, model) 
-SELECT 1, 'Toyota Camry' 
-WHERE NOT EXISTS (SELECT 1 FROM Vehicles WHERE client_id = 1 AND model = 'Toyota Camry');
-
-INSERT INTO Services (name, price) 
-SELECT 'Замена масла', 2000.00 
-WHERE NOT EXISTS (SELECT 1 FROM Services WHERE name = 'Замена масла');
-
-INSERT INTO Services (name, price) 
-SELECT 'Диагностика', 1500.00 
-WHERE NOT EXISTS (SELECT 1 FROM Services WHERE name = 'Диагностика');
-
--- 3. СОЗДАНИЕ ЗАКАЗА (ПРОВЕРКИ + ДОБАВЛЕНИЕ)
-INSERT INTO Orders (client_id, vehicle_id) 
-SELECT 1, 1 
-WHERE EXISTS (SELECT 1 FROM Clients WHERE id = 1)
-AND EXISTS (SELECT 1 FROM Vehicles WHERE id = 1 AND client_id = 1);
-
--- Получение ID последнего заказа
-SELECT last_insert_rowid();  
-
-INSERT INTO OrderDetails (order_id, service_id, price) 
-SELECT 1, id, price 
-FROM Services 
-WHERE name IN ('Замена масла', 'Диагностика');
-
--- 5. ОБНОВЛЕНИЕ ИТОГОВОЙ СУММЫ ЗАКАЗА
-UPDATE Orders 
-SET total_cost = (SELECT SUM(price) FROM OrderDetails WHERE order_id = 1) 
-WHERE id = 1;
-
--- 6. ПРОВЕРКА РЕЗУЛЬТАТА
-SELECT * FROM Orders;
-SELECT * FROM OrderDetails;
+DELIMITER //
+CREATE PROCEDURE CreateOrder(
+    IN p_client_id INT,
+    IN p_vehicle_id INT,
+    IN p_service_list TEXT
+)
+BEGIN
+    DECLARE v_order_id INT;
+    DECLARE v_total DECIMAL(10,2) DEFAULT 0;
+    DECLARE v_service_count INT;
+    
+    -- Проверка существования клиента
+    IF NOT EXISTS (SELECT 1 FROM Clients WHERE id = p_client_id) THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Ошибка: Клиент не найден';
+    END IF;
+    
+    -- Проверка существования транспортного средства
+    IF NOT EXISTS (SELECT 1 FROM Vehicles WHERE id = p_vehicle_id) THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Ошибка: Транспортное средство не найдено';
+    END IF;
+    
+    -- Проверка принадлежности ТС клиенту
+    IF NOT EXISTS (SELECT 1 FROM Vehicles WHERE id = p_vehicle_id AND client_id = p_client_id) THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Ошибка: Транспортное средство не принадлежит клиенту';
+    END IF;
+    
+    -- Проверка существования услуг
+    CREATE TEMPORARY TABLE TempServices (service_name VARCHAR(255));
+    
+    SET @query = CONCAT('INSERT INTO TempServices (service_name) SELECT TRIM(value) FROM STRING_SPLIT(', QUOTE(p_service_list), ')');
+    PREPARE stmt FROM @query;
+    EXECUTE stmt;
+    DEALLOCATE PREPARE stmt;
+    
+    SELECT COUNT(*) INTO v_service_count 
+    FROM TempServices t
+    JOIN Services s ON LOWER(s.name) = LOWER(t.service_name);
+    
+    IF v_service_count = 0 THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Ошибка: Услуги не найдены';
+    END IF;
+    
+    -- Создание заголовка заказа
+    INSERT INTO Orders (client_id, vehicle_id, total_amount, order_date)
+    VALUES (p_client_id, p_vehicle_id, 0, NOW());
+    
+    SET v_order_id = LAST_INSERT_ID();
+    
+    -- Добавление строк заказа и расчет суммы
+    INSERT INTO OrderDetails (order_id, service_id, price)
+    SELECT v_order_id, s.id, s.price
+    FROM TempServices t
+    JOIN Services s ON LOWER(s.name) = LOWER(t.service_name);
+    
+    -- Обновление суммы заказа
+    SELECT SUM(price) INTO v_total FROM OrderDetails WHERE order_id = v_order_id;
+    UPDATE Orders SET total_amount = v_total WHERE id = v_order_id;
+    
+    -- Очистка временной таблицы
+    DROP TEMPORARY TABLE TempServices;
+END //
+DELIMITER ;
 
 

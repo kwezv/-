@@ -1,1 +1,62 @@
-
+DELIMITER //
+CREATE PROCEDURE CreateOrder(
+    IN p_client_id INT,
+    IN p_vehicle_id INT,
+    IN p_service_list TEXT
+)
+BEGIN
+    DECLARE v_order_id INT;
+    DECLARE v_total DECIMAL(10,2) DEFAULT 0;
+    DECLARE v_service_count INT;
+    
+    -- Проверка существования клиента
+    IF NOT EXISTS (SELECT 1 FROM Clients WHERE id = p_client_id) THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Ошибка: Клиент не найден';
+    END IF;
+    
+    -- Проверка существования транспортного средства
+    IF NOT EXISTS (SELECT 1 FROM Vehicles WHERE id = p_vehicle_id) THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Ошибка: Транспортное средство не найдено';
+    END IF;
+    
+    -- Проверка принадлежности ТС клиенту
+    IF NOT EXISTS (SELECT 1 FROM Vehicles WHERE id = p_vehicle_id AND client_id = p_client_id) THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Ошибка: Транспортное средство не принадлежит клиенту';
+    END IF;
+    
+    -- Проверка существования услуг
+    CREATE TEMPORARY TABLE TempServices (service_name VARCHAR(255));
+    
+    SET @query = CONCAT('INSERT INTO TempServices (service_name) SELECT TRIM(value) FROM STRING_SPLIT(', QUOTE(p_service_list), ')');
+    PREPARE stmt FROM @query;
+    EXECUTE stmt;
+    DEALLOCATE PREPARE stmt;
+    
+    SELECT COUNT(*) INTO v_service_count 
+    FROM TempServices t
+    JOIN Services s ON LOWER(s.name) = LOWER(t.service_name);
+    
+    IF v_service_count = 0 THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Ошибка: Услуги не найдены';
+    END IF;
+    
+    -- Создание заголовка заказа
+    INSERT INTO Orders (client_id, vehicle_id, total_amount, order_date)
+    VALUES (p_client_id, p_vehicle_id, 0, NOW());
+    
+    SET v_order_id = LAST_INSERT_ID();
+    
+    -- Добавление строк заказа и расчет суммы
+    INSERT INTO OrderDetails (order_id, service_id, price)
+    SELECT v_order_id, s.id, s.price
+    FROM TempServices t
+    JOIN Services s ON LOWER(s.name) = LOWER(t.service_name);
+    
+    -- Обновление суммы заказа
+    SELECT SUM(price) INTO v_total FROM OrderDetails WHERE order_id = v_order_id;
+    UPDATE Orders SET total_amount = v_total WHERE id = v_order_id;
+    
+    -- Очистка временной таблицы
+    DROP TEMPORARY TABLE TempServices;
+END //
+DELIMITER ;

@@ -1,53 +1,70 @@
-CREATE TABLE IF NOT EXISTS Clients (
-    id INTEGER PRIMARY KEY,
-    name TEXT NOT NULL
+DROP TABLE IF EXISTS Заказы;
+DROP TABLE IF EXISTS Автомобили;
+DROP TABLE IF EXISTS Услуги;
+DROP TABLE IF EXISTS Мастера;
+DROP TABLE IF EXISTS Клиенты;
+
+CREATE TABLE Клиенты (
+    ID_Клиента INT PRIMARY KEY,
+    ФИО_Клиента VARCHAR(100),
+    Телефон_Клиента VARCHAR(15)
 );
 
-CREATE TABLE IF NOT EXISTS Vehicles (
-    id INTEGER PRIMARY KEY,
-    client_id INTEGER,
-    model TEXT NOT NULL,
-    FOREIGN KEY (client_id) REFERENCES Clients(id)
+CREATE TABLE Автомобили (
+    ID_Автомобиля INT PRIMARY KEY,
+    Марка VARCHAR(50),
+    Модель VARCHAR(50),
+    ID_Клиента INT,
+    FOREIGN KEY (ID_Клиента) REFERENCES Клиенты(ID_Клиента)
 );
 
-CREATE TABLE IF NOT EXISTS Services (
-    id INTEGER PRIMARY KEY,
-    name TEXT NOT NULL,
-    price DECIMAL(10,2) NOT NULL
+CREATE TABLE Услуги (
+    ID_Услуги INT PRIMARY KEY,
+    Название_Услуги VARCHAR(100),
+    Стоимость DECIMAL(10, 2)
 );
 
-CREATE TABLE IF NOT EXISTS Orders (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    client_id INTEGER,
-    vehicle_id INTEGER,
-    total_cost DECIMAL(10,2),
-    order_date TEXT DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (client_id) REFERENCES Clients(id),
-    FOREIGN KEY (vehicle_id) REFERENCES Vehicles(id)
+CREATE TABLE Мастера (
+    ID_Мастера INT PRIMARY KEY,
+    ФИО_Мастера VARCHAR(100),
+    Телефон_Мастера VARCHAR(15),
+    Зарплата DECIMAL(10, 2) 
 );
 
-CREATE TABLE IF NOT EXISTS OrderDetails (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    order_id INTEGER,
-    service_id INTEGER,
-    price DECIMAL(10,2),
-    FOREIGN KEY (order_id) REFERENCES Orders(id),
-    FOREIGN KEY (service_id) REFERENCES Services(id)
+CREATE TABLE Заказы (
+    ID_Заказа INT PRIMARY KEY,
+    Дата_Заказа DATE,
+    ID_Клиента INT,
+    ID_Автомобиля INT,
+    ID_Услуги INT,
+    ID_Мастера INT,
+    FOREIGN KEY (ID_Клиента) REFERENCES Клиенты(ID_Клиента),
+    FOREIGN KEY (ID_Автомобиля) REFERENCES Автомобили(ID_Автомобиля),
+    FOREIGN KEY (ID_Услуги) REFERENCES Услуги(ID_Услуги),
+    FOREIGN KEY (ID_Мастера) REFERENCES Мастера(ID_Мастера)
 );
 
-CREATE TRIGGER IF NOT EXISTS create_order
-AFTER INSERT ON Orders
-FOR EACH ROW
-BEGIN
-    UPDATE Orders SET total_cost = (SELECT SUM(price) FROM OrderDetails WHERE order_id = NEW.id) WHERE id = NEW.id;
-END;
+INSERT INTO Клиенты (ID_Клиента, ФИО_Клиента, Телефон_Клиента) VALUES
+(1, 'Иванов Иван Иванович', '+79990001122'),
+(2, 'Петров Петр Петрович', '+79990002233'),
+(3, 'Сидорова Анна Сергеевна', '+79990003344');
 
-INSERT INTO Clients (id, name) SELECT 1, 'Дмитрий Кудряшов' WHERE NOT EXISTS (SELECT 1 FROM Clients WHERE id = 1);
-INSERT INTO Vehicles (id, client_id, model) SELECT 1, 1, 'Toyota Camry' WHERE NOT EXISTS (SELECT 1 FROM Vehicles WHERE id = 1);
-INSERT INTO Services (id, name, price) SELECT 1, 'Замена масла', 2000.00 WHERE NOT EXISTS (SELECT 1 FROM Services WHERE id = 1);
-INSERT INTO Services (id, name, price) SELECT 2, 'Диагностика', 1500.00 WHERE NOT EXISTS (SELECT 1 FROM Services WHERE id = 2);
+INSERT INTO Автомобили (ID_Автомобиля, Марка, Модель, ID_Клиента) VALUES
+(1, 'Toyota', 'Camry', 1),
+(2, 'Honda', 'Civic', 2),
+(3, 'BMW', 'X5', 3);
 
-INSERT INTO Orders (client_id, vehicle_id) VALUES (1, 1);
-INSERT INTO OrderDetails (order_id, service_id, price) VALUES (1, 1, 2000.00), (1, 2, 1500.00);
+INSERT INTO Услуги (ID_Услуги, Название_Услуги, Стоимость) VALUES
+(1, 'Замена масла', 3000.00),
+(2, 'Шиномонтаж', 1500.00),
+(3, 'Диагностика', 2000.00);
 
-SELECT * FROM Orders;
+INSERT INTO Мастера (ID_Мастера, ФИО_Мастера, Телефон_Мастера, Зарплата) VALUES
+(1, 'Смирнов Алексей Владимирович', '+79991234567', 50000.00),
+(2, 'Кузнецов Михаил Сергеевич', '+79992345678', 60000.00),
+(3, 'Попова Ольга Николаевна', '+79993456789', 55000.00);
+
+INSERT INTO Заказы (ID_Заказа, Дата_Заказа, ID_Клиента, ID_Автомобиля, ID_Услуги, ID_Мастера) VALUES
+(1, '2024-12-10', 1, 1, 1, 1),
+(2, '2024-12-11', 2, 2, 2, 2),
+(3, '2024-12-12', 3, 3, 3, 3);
